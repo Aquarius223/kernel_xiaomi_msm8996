@@ -315,7 +315,7 @@
 		qcom,batt-id-range-pct = <15>;
 		#include "batterydata-a7-atl-3200mah.dtsi"
 		#include "batterydata-a7-sdi-3200mah.dtsi"
-		#include "batterydata-itech-3020mah.dtsi"
+		#include "batterydata-sticbattery-4000mah.dtsi"
 };
 
 &pmi8994_charger {

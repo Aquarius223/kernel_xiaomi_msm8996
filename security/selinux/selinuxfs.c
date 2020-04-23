@@ -141,7 +141,6 @@ static ssize_t sel_read_enforce(struct file *filp, char __user *buf,
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
 static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
-
 {
 	char *page = NULL;
 	ssize_t length;

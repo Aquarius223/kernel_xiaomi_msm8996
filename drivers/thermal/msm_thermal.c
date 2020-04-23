@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Amktiao.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,6 +17,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/kthread.h>
 #include <linux/mutex.h>
 #include <linux/msm_tsens.h>
@@ -1612,7 +1614,7 @@ static void do_cluster_freq_ctrl(long temp)
 			if (!(msm_thermal_info.bootup_freq_control_mask
 				& BIT(_cpu)))
 				continue;
-			pr_info("Limiting CPU%d max frequency to %u. Temp:%ld\n"
+			pr_debug("Limiting CPU%d max frequency to %u. Temp:%ld\n"
 				, _cpu
 				, cluster_ptr->freq_table[freq_idx].frequency
 				, temp);
@@ -2891,7 +2893,7 @@ static void __ref do_core_control(long temp)
 				continue;
 			if (cpus_offlined & BIT(i) && !cpu_online(i))
 				continue;
-			pr_info("Set Offline: CPU%d Temp: %ld\n",
+			pr_debug("Set Offline: CPU%d Temp: %ld\n",
 					i, temp);
 			lock_device_hotplug();
 			if (cpu_online(i)) {
@@ -2915,7 +2917,7 @@ static void __ref do_core_control(long temp)
 			if (!(cpus_offlined & BIT(i)))
 				continue;
 			cpus_offlined &= ~BIT(i);
-			pr_info("Allow Online CPU%d Temp: %ld\n",
+			pr_debug("Allow Online CPU%d Temp: %ld\n",
 					i, temp);
 			/*
 			 * If this core is already online, then bring up the
@@ -3466,7 +3468,7 @@ static void do_freq_control(long temp)
 	for_each_possible_cpu(cpu) {
 		if (!(msm_thermal_info.bootup_freq_control_mask & BIT(cpu)))
 			continue;
-		pr_info("Limiting CPU%d max frequency to %u. Temp:%ld\n",
+		pr_debug("Limiting CPU%d max frequency to %u. Temp:%ld\n",
 			cpu, max_freq, temp);
 		cpus[cpu].limited_max_freq =
 				min(max_freq, cpus[cpu].vdd_max_freq);
@@ -3570,7 +3572,7 @@ static int hotplug_notify(enum thermal_trip_type type, int temp, void *data)
 {
 	struct cpu_info *cpu_node = (struct cpu_info *)data;
 
-	pr_info_ratelimited("%s reach temp threshold: %d\n",
+	pr_debug_ratelimited("%s reach temp threshold: %d\n",
 			       cpu_node->sensor_type, temp);
 
 	if (!(msm_thermal_info.core_control_mask & BIT(cpu_node->cpu)))
@@ -3779,7 +3781,7 @@ static int freq_mitigation_notify(enum thermal_trip_type type,
 	switch (type) {
 	case THERMAL_TRIP_CONFIGURABLE_HI:
 		if (!cpu_node->max_freq) {
-			pr_info_ratelimited(
+			pr_debug_ratelimited(
 				"Mitigating CPU%d frequency to %d\n",
 				cpu_node->cpu, msm_thermal_info.freq_limit);
 
@@ -3788,7 +3790,7 @@ static int freq_mitigation_notify(enum thermal_trip_type type,
 		break;
 	case THERMAL_TRIP_CONFIGURABLE_LOW:
 		if (cpu_node->max_freq) {
-			pr_info_ratelimited(
+			pr_debug_ratelimited(
 				"Removing frequency mitigation for CPU%d\n",
 				cpu_node->cpu);
 
@@ -4566,7 +4568,7 @@ int sensor_mgr_init_threshold(struct threshold_info *thresh_inp,
 		goto init_thresh_exit;
 	}
 	if (thresh_inp->thresh_list) {
-		pr_info("threshold id already initialized\n");
+		pr_debug("threshold id already initialized\n");
 		goto init_thresh_exit;
 	}
 
@@ -4774,7 +4776,7 @@ static void __ref disable_msm_thermal(void)
 		if (cpus[cpu].limited_max_freq == UINT_MAX &&
 			cpus[cpu].limited_min_freq == 0)
 			continue;
-		pr_info("Max frequency reset for CPU%d\n", cpu);
+		pr_debug("Max frequency reset for CPU%d\n", cpu);
 		cpus[cpu].limited_max_freq = UINT_MAX;
 		cpus[cpu].vdd_max_freq = UINT_MAX;
 		cpus[cpu].limited_min_freq = 0;
@@ -4810,10 +4812,10 @@ static int __ref set_enabled(const char *val, const struct kernel_param *kp)
 	if (!enabled)
 		interrupt_mode_init();
 	else
-		pr_info("no action for enabled = %d\n",
+		pr_debug("no action for enabled = %d\n",
 			enabled);
 
-	pr_info("enabled = %d\n", enabled);
+	pr_debug("enabled = %d\n", enabled);
 
 	return ret;
 }
@@ -4825,6 +4827,23 @@ static struct kernel_param_ops module_ops = {
 
 module_param_cb(enabled, &module_ops, &enabled, 0644);
 MODULE_PARM_DESC(enabled, "enforce thermal limit on cpu");
+
+/* Thermal */
+module_param_named(poll_ms, msm_thermal_info.poll_ms, uint, 0755);
+module_param_named(freq_mitig_temp_degc,
+		   msm_thermal_info.freq_mitig_temp_degc, uint, 0755);
+module_param_named(freq_control_mask,
+		   msm_thermal_info.bootup_freq_control_mask, uint, 0755);
+module_param_named(core_control_mask, msm_thermal_info.core_control_mask,
+			uint, 0755);
+module_param_named(freq_mitig_control_mask,
+		   msm_thermal_info.freq_mitig_control_mask, uint, 0755);
+module_param_named(temperature_threshold, msm_thermal_info.limit_temp_degC,
+			int, 0755);
+module_param_named(core_temp_limit_degC, msm_thermal_info.core_limit_temp_degC,
+		   uint, 0755);
+module_param_named(hotplug_temp_degC, msm_thermal_info.hotplug_temp_degC,
+		   uint, 0755);
 
 static ssize_t show_cc_enabled(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -4855,7 +4874,7 @@ static ssize_t __ref store_cc_enabled(struct kobject *kobj,
 
 	core_control_enabled = !!val;
 	if (core_control_enabled) {
-		pr_info("Core control enabled\n");
+		pr_debug("Core control enabled\n");
 		cpus_previously_online_update();
 		register_cpu_notifier(&msm_thermal_cpu_notifier);
 		/*
@@ -4876,7 +4895,7 @@ static ssize_t __ref store_cc_enabled(struct kobject *kobj,
 		}
 		mutex_unlock(&core_control_mutex);
 	} else {
-		pr_info("Core control disabled\n");
+		pr_debug("Core control disabled\n");
 		unregister_cpu_notifier(&msm_thermal_cpu_notifier);
 	}
 
@@ -5315,7 +5334,7 @@ static int vdd_restriction_reg_init(struct platform_device *pdev)
 			if (freq_table_get)
 				ret = vdd_restriction_apply_freq(&rails[i], 0);
 			else
-				pr_info("Defer vdd rstr freq init.\n");
+				pr_debug("Defer vdd rstr freq init.\n");
 		} else {
 			rails[i].reg = devm_regulator_get(&pdev->dev,
 					rails[i].name);
@@ -5329,7 +5348,7 @@ static int vdd_restriction_reg_init(struct platform_device *pdev)
 					rails[i].curr_level = -2;
 					return ret;
 				}
-				pr_info("Defer regulator %s probe\n",
+				pr_debug("Defer regulator %s probe\n",
 					rails[i].name);
 				return ret;
 			}
@@ -5361,7 +5380,7 @@ static int psm_reg_init(struct platform_device *pdev)
 				psm_rails[i].reg = NULL;
 				goto psm_reg_exit;
 			}
-			pr_info("Defer regulator %s probe\n",
+			pr_debug("Defer regulator %s probe\n",
 					psm_rails[i].name);
 			return ret;
 		}
@@ -6421,7 +6440,7 @@ static int probe_ocr(struct device_node *node, struct msm_thermal_data *data,
 	char *key = NULL;
 
 	if (ocr_probed) {
-		pr_info("Nodes already probed\n");
+		pr_debug("Nodes already probed\n");
 		goto read_ocr_exit;
 	}
 	ocr_rails = NULL;
@@ -6470,7 +6489,7 @@ static int probe_ocr(struct device_node *node, struct msm_thermal_data *data,
 	key = "qcom,pmic-opt-curr-sensor-id";
 	ret = of_property_read_u32(node, key, &data->ocr_sensor_id);
 	if (ret) {
-		pr_info("ocr sensor is not configured, use all TSENS. err:%d\n",
+		pr_debug("ocr sensor is not configured, use all TSENS. err:%d\n",
 			ret);
 		data->ocr_sensor_id = MONITOR_ALL_TSENS;
 	}
@@ -6479,7 +6498,7 @@ static int probe_ocr(struct device_node *node, struct msm_thermal_data *data,
 	if (ret) {
 		if (ret == -EPROBE_DEFER) {
 			ocr_reg_init_defer = true;
-			pr_info("ocr reg init is defered\n");
+			pr_debug("ocr reg init is defered\n");
 		} else {
 			pr_err(
 			"Failed to get regulators. KTM continues. err:%d\n",
@@ -7445,7 +7464,7 @@ static int msm_thermal_dev_exit(struct platform_device *inp_dev)
 static int __init ktm_params(char *str)
 {
 	if (str != NULL && !strcmp(str, "disable")) {
-		pr_info("KTM Disabled at Boot\n");
+		pr_debug("KTM Disabled at Boot\n");
 		mitigation = 0;
 	}
 
